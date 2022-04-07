@@ -3,17 +3,17 @@ SDIR = src
 
 IDIR = include
 CC = gcc
-CFLAGS = -I$(IDIR)
+CFLAGS = -I$(IDIR) -Wall
 
 ODIR=.obj
 LDIR=lib
 
 LIBS = -lm
 
-_DEPS =
+_DEPS = graph.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o
+_OBJ = main.o graph.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
