@@ -10,10 +10,10 @@ LDIR=lib
 
 LIBS = -lm
 
-_DEPS = graph.h
+_DEPS = graph.h fluid_mechanics.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o graph.o
+_OBJ = main.o graph.o fluid_mechanics.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)

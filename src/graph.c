@@ -28,6 +28,22 @@ typedef struct Pipe{
   union dimensions dimensions;
   float area;
   float rough;
+  float length;
+
+  float fluid_viscosity;
+  float fluid_density;
+
+  float pressure_in;
+  float pressure_out;
+
+  float flowrate;
+
+  float fluid_velocity;
+
+  float friction;
+
+  float flowrate_ideal;
+  float flowrate_real;
 
   int ID;
 
@@ -45,8 +61,17 @@ typedef struct Node{
   _Bool is_input;
   _Bool is_output;
 
-  float flowrate;             //m³/s. if -1 -> unknown
-  _Bool flowrate_is_measured; //false -> calculated or unknown
+  float height;
+
+  float fluid_viscosity;
+  float fluid_density;
+
+  float fluid_velocity;
+
+  float pressure_measured;    //Pa.   if -1 -> not measured
+  float pressure_calculated;  //Pa.   if -1 -> not yet calculated
+  float flowrate_measured;    //m³/s. if -1 -> not measured
+  float flowrate_calculated;  //m³/s. if -1 -> not yet calculated
 
   int ID;
 } Node;
@@ -56,6 +81,12 @@ typedef struct Graph{
   Pipe **pipes;
 
   int *inc_matrix;
+  float *mass_conservation_matrix;
+
+  FrictionModel friction_model;
+
+  float fluid_viscosity;
+  float fluid_density;
 
   int n_pipes;
   int n_nodes;
@@ -68,6 +99,18 @@ Pipe *pipe_new(Pipe **ret, Node *orig, Node *dest){
 
   new->orig = orig;
   new->dest = dest;
+
+  new->length = 1;
+  new->fluid_viscosity = -1;
+  new->fluid_density = -1;
+  new->friction = -1;
+
+  new->pressure_in = -1;
+  new->pressure_out = -1;
+
+  new->flowrate = -1;
+
+  new->fluid_velocity = -1;
 
   pipe_set_geometry(new, GEOMETRY_CIRCULAR);
 
@@ -87,13 +130,22 @@ Node *node_new(Node **ret){
   new->pipes_in = NULL;
   new->pipes_out = NULL;
 
+  new->fluid_viscosity = -1;
+  new->fluid_density = -1;
+
+  new->fluid_velocity = -1;
+
+  new->height = 0;
+
   new->is_junction = false;
   new->is_connected = false;
   new->is_input = false;
   new->is_output = false;
 
-  new->flowrate = -1;
-  new->flowrate_is_measured = false;
+  new->pressure_measured = -1;
+  new->pressure_calculated = -1;
+  new->flowrate_measured = -1;
+  new->flowrate_calculated = -1;
 
   if (ret != NULL){
     *ret = new;
@@ -119,6 +171,8 @@ Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
   g->pipes = malloc(sizeof(Pipe *) * n_pipes);
 
   g->inc_matrix = calloc(sizeof(int) * n_nodes * n_pipes, 1);
+  g->mass_conservation_matrix = calloc(sizeof(float) * n_nodes * n_pipes, 1);
+
 
   //Create nodes
   for (int i = 0; i < n_nodes; i++){
@@ -133,8 +187,8 @@ Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
     node_add_pipe_out(g->nodes[sorig[i]], g->pipes[i]);
     node_add_pipe_in(g->nodes[torig[i]], g->pipes[i]);
 
-    g->inc_matrix[i*n_nodes + sorig[i]] = -1;
-    g->inc_matrix[i*n_nodes + torig[i]] = 1;
+    g->inc_matrix[sorig[i]*g->n_pipes + i] = -1;
+    g->inc_matrix[torig[i]*g->n_pipes + i] = 1;
   }
 
   if (ret != NULL){
@@ -191,8 +245,11 @@ void node_add_pipe_out(Node *n, Pipe *p){
 void node_set_id(Node *n, int id){
   n->ID = id;
 }
+int node_get_id(Node *n){
+  return n->ID;
+}
 void node_print(Node *n){
-  printf("Node nº with ID %d\n", n->ID);
+  printf("Node with ID %d\n", n->ID);
 
   if (n->is_connected){
     if (n->is_junction){
@@ -200,7 +257,7 @@ void node_print(Node *n){
     }
 
     if (! n->is_input){
-      printf("Fed by: ");
+      printf("Fed by pipes: ");
       for (int j = 0; j < n->n_pipes_in; j++){
         printf("%d ", n->pipes_in[j]->ID);
       }
@@ -210,7 +267,7 @@ void node_print(Node *n){
     printf("\n");
 
     if (! n->is_output){
-      printf("Out to: ");
+      printf("Outputs to:   ");
       for (int j = 0; j < n->n_pipes_out; j++){
         printf("%d ", n->pipes_out[j]->ID);
       }
@@ -219,14 +276,42 @@ void node_print(Node *n){
     }
     printf("\n");
 
-    if (n->flowrate != -1){
-      printf("Flowrate ");
-      if (!n->flowrate_is_measured){
-        printf("NOT ");
-      }
-      printf("measured: %g m³/s\n", n->flowrate);
+    if (n->pressure_measured != -1){  //Pressure measured
+      printf("Pressure measured:   %g Pa\n", n->pressure_measured);
+    } else {
+      printf("Pressure unknown\n");
+    }
+
+    if (n->pressure_calculated != -1){  //Pressure calculated
+      printf("Pressure calculated: %g Pa\n", n->pressure_calculated);
+    } else {
+      printf("Pressure not calculated\n");
+    }
+
+    if (n->fluid_velocity != -1){  //Velocity
+      printf("Fluid velocity:      %g m/s\n", n->fluid_velocity);
+    } else {
+      printf("Velocity unknown\n");
+    }
+
+
+    if (n->flowrate_measured != -1){  //Flowrate measured
+      printf("Flowrate measured:   %g m³/s\n", n->flowrate_measured);
     } else {
       printf("Flowrate unknown\n");
+    }
+
+    if (n->flowrate_calculated != -1){  //Flowrate calculated
+      printf("Flowrate calculated: %g m³/s\n", n->flowrate_calculated);
+    } else {
+      printf("Flowrate not calculated\n");
+    }
+
+    if (n->flowrate_calculated != -1 && n->flowrate_measured != -1){
+      //We known ideal and real flowrates
+      if (n->flowrate_calculated != n->flowrate_measured){
+        printf("Leakage detected!!!\n");
+      }
     }
 
 
@@ -234,14 +319,59 @@ void node_print(Node *n){
     printf("Disconnected node\n");
   }
 }
-void node_set_flowrate(Node *n, float f){
-  n->flowrate = f;
+void node_set_height(Node *n, float h){
+  n->height = h;
 }
-float node_get_flowrate(Node *n){
-  return n->flowrate;
+float node_get_height(Node *n){
+  return n->height;
 }
-void node_set_flowrate_measured(Node *n, _Bool m){
-  n->flowrate_is_measured = true;
+void node_set_flowrate_measured(Node *n, float f){
+  n->flowrate_measured = f;
+}
+float node_get_flowrate_measured(Node *n){
+  return n->flowrate_measured;
+}
+void node_set_flowrate_calculated(Node *n, float f){
+  n->flowrate_calculated = f;
+}
+float node_get_flowrate_calculated(Node *n){
+  return n->flowrate_calculated;
+}
+float node_input_compute_pressure(Node *n){
+  float p = 101325 + n->height*9.81*n->fluid_density;
+  // float p = n->height*9.806*n->fluid_density;
+  n->pressure_measured = p;
+  return p;
+}
+void node_set_pressure_measured(Node *n, float p){
+  n->pressure_measured = p;
+}
+float node_get_pressure_measured(Node *n){
+  return n->pressure_measured;
+}
+void node_set_pressure_calculated(Node *n, float p){
+  n->pressure_calculated = p;
+}
+float node_get_pressure_calculated(Node *n){
+  return n->pressure_calculated;
+}
+void node_set_fluid_viscosity(Node *n, float v){
+  n->fluid_viscosity = v;
+}
+float node_get_fluid_viscosity(Node *n){
+  return n->fluid_viscosity;
+}
+void node_set_fluid_density(Node *n, float d){
+  n->fluid_density = d;
+}
+float node_get_fluid_density(Node *n){
+  return n->fluid_density;
+}
+void node_set_fluid_velocity(Node *n, float v){
+  n->fluid_velocity = v;
+}
+float node_get_fluid_velocity(Node *n){
+  return n->fluid_velocity;
 }
 
 //Pipe functions
@@ -277,23 +407,94 @@ void pipe_set_id(Pipe *p, int id){
 void pipe_set_rough(Pipe *p, float r){
   p->rough = r;
 }
+void pipe_set_length(Pipe *p, float l){
+  p->length = l;
+}
 void pipe_set_geometry(Pipe *p, int g){
   p->geometry = g;
 }
 void pipe_print(Pipe *p){
-  printf("Pipe nº with ID %d:\n", p->ID);
+  printf("Pipe with ID %d:\n", p->ID);
+  printf("Length: %gm\n", p->length);
   switch(p->geometry){
     case GEOMETRY_CIRCULAR:
+      printf("Geometry: Circular\n");
       printf("Diam %g, area %g\n", p->dimensions.circ_diam, p->area);
       break;
   }
+
   printf("Roughness: %.7f\n", p->rough);
+  printf("Fluid density:   %g\n", p->fluid_density);
+  printf("Fluid viscosity: %g\n", p->fluid_viscosity);
+
+  if (p->flowrate != -1){
+    printf("Flowrate:        %g m³/s\n", p->flowrate);
+  } else {
+    printf("Flowrate unknown\n");
+  }
+  if (p->fluid_velocity != -1){
+    printf("Velocity:        %g m/s\n", p->fluid_velocity);
+  } else {
+    printf("Velocity unknown\n");
+  }
+  if (p->friction != -1){
+    printf("Friction:        %g\n", p->friction);
+  } else {
+    printf("Friction unknown\n");
+  }
+  if (p->pressure_in != -1){
+    printf("Pressure in:     %g\n", p->pressure_in);
+  } else {
+    printf("Pressure in unkown\n");
+  }
+  if (p->pressure_out != -1){
+    printf("Pressure out:    %g\n", p->pressure_out);
+  } else {
+    printf("Pressure out unkown\n");
+  }
   printf("%3d -> %3d\n", p->orig->ID, p->dest->ID);
   printf("\n");
+}
+void pipe_set_fluid_viscosity(Pipe *p, float v){
+  p->fluid_viscosity = v;
+}
+float pipe_get_fluid_viscosity(Pipe *p){
+  return p->fluid_viscosity;
+}
+void pipe_set_fluid_density(Pipe *p, float d){
+  p->fluid_density = d;
+}
+float pipe_get_fluid_density(Pipe *p){
+  return p->fluid_density;
+}
+void pipe_set_friction(Pipe *p, float fd){
+  p->friction = fd;
+}
+float pipe_get_friction(Pipe *p){
+  return p->friction;
+}
+float pipe_compute_friction(Pipe *p, FrictionModel fm){
+  float fd;
+  fd = fm(p->dimensions.circ_diam,
+          p->rough,
+          p->fluid_density,
+          p->fluid_viscosity,
+          p->fluid_velocity);
+
+  p->friction = fd;
+
+  return fd;
 }
 
 
 //Graph functions
+void graph_compute_mass_conservation_matrix(Graph *g){
+  for (int j = 0; j < g->n_nodes; j++){
+  for (int i = 0; i < g->n_pipes; i++){
+    g->mass_conservation_matrix[j*g->n_pipes + i] = g->inc_matrix[j*g->n_pipes + i] * g->pipes[i]->area;
+  }
+  }
+}
 void graph_set_diameters(Graph *g, float *d){
   for (int i = 0; i < g->n_pipes; i++){
     pipe_set_diam(g->pipes[i], d[i]);
@@ -304,13 +505,36 @@ void graph_set_roughness(Graph *g, float *r){
     pipe_set_rough(g->pipes[i], r[i]);
   }
 }
+void graph_set_lengths(Graph *g, float *l){
+  for (int i = 0; i < g->n_pipes; i++){
+    pipe_set_length(g->pipes[i], l[i]);
+  }
+}
+Node **graph_get_nodes(Graph *g){
+  return g->nodes;
+}
+Pipe **graph_get_pipes(Graph *g){
+  return g->pipes;
+}
 void graph_print_incidence_matrix(Graph *g){
   for (int j = 0; j < g->n_nodes; j++){
   for (int i = 0; i < g->n_pipes; i++){
-    if (g->inc_matrix[i*g->n_nodes + j] < 0){
-      printf("%d ", g->inc_matrix[i*g->n_nodes + j]);
+    if (g->inc_matrix[j*g->n_pipes + i] < 0){
+      printf("%d ", g->inc_matrix[j*g->n_pipes + i]);
     } else {
-      printf(" %d ", g->inc_matrix[i*g->n_nodes + j]);
+      printf(" %d ", g->inc_matrix[j*g->n_pipes + i]);
+    }
+  }
+  printf("\n");
+  }
+}
+void graph_print_mass_conservation_matrix(Graph *g){
+  for (int j = 0; j < g->n_nodes; j++){
+  for (int i = 0; i < g->n_pipes; i++){
+    if (g->mass_conservation_matrix[j*g->n_pipes + i] < 0){
+      printf("%.4f ", g->mass_conservation_matrix[j*g->n_pipes + i]);
+    } else {
+      printf(" %.4f ", g->mass_conservation_matrix[j*g->n_pipes + i]);
     }
   }
   printf("\n");
@@ -330,8 +554,12 @@ void graph_print(Graph *g){
     printf("\n");
   }
 
+
   printf("\n\nINCIDENCE MATRIX:\n");
   graph_print_incidence_matrix(g);
+
+  // printf("\n\nMASS CONSERVATION MATRIX:\n");
+  // graph_print_mass_conservation_matrix(g);
   printf("---------------------------------------\n");
 }
 void graph_print_disconnected_nodes(Graph *g){
@@ -373,6 +601,9 @@ void graph_print_output_nodes(Graph *g){
       printf("\n");
     }
   }
+}
+int graph_get_n_nodes(Graph *g){
+  return g->n_nodes;
 }
 int graph_get_n_disconnected_nodes(Graph *g){
   int sum = 0;
@@ -418,6 +649,9 @@ int graph_get_n_output_nodes(Graph *g){
     }
   }
   return sum;
+}
+Node *graph_get_nth_node(Graph *g, int i){
+  return g->nodes[i];
 }
 Node *graph_get_nth_disconnected_node(Graph *g, int index){
   int sum = 0;
@@ -485,7 +719,22 @@ float graph_get_total_outflow(Graph *g){
   float sum = 0;
   for (int i = 0; i < num_outputs; i++){
     Node *n = graph_get_nth_output_node(g, i);
-    sum += node_get_flowrate(n);
+    float flow = node_get_flowrate_measured(n);
+    if (flow != -1){
+      sum += flow;
+    }
+  }
+  return sum;
+}
+float graph_get_total_calculated_outflow(Graph *g){
+  int num_outputs = graph_get_n_output_nodes(g);
+  float sum = 0;
+  for (int i = 0; i < num_outputs; i++){
+    Node *n = graph_get_nth_output_node(g, i);
+    float flow = node_get_flowrate_calculated(n);
+    if (flow != -1){
+      sum += flow;
+    }
   }
   return sum;
 }
@@ -498,6 +747,268 @@ void graph_set_inflow_evenly(Graph *g){
 
   for (int i = 0; i < num_inputs; i++){
     Node *n = graph_get_nth_input_node(g, i);
-    node_set_flowrate(n, even_outflow);
+    node_set_flowrate_calculated(n, even_outflow);
+  }
+}
+float graph_get_total_calculated_inflow(Graph *g){
+  int num = graph_get_n_input_nodes(g);
+  float sum = 0;
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_input_node(g, i);
+    float flow = node_get_flowrate_calculated(n);
+    if (flow != -1){
+      sum += flow;
+    }
+  }
+  return sum;
+}
+float graph_get_total_inflow(Graph *g){
+  int num = graph_get_n_input_nodes(g);
+  float sum = 0;
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_input_node(g, i);
+    float flow = node_get_flowrate_measured(n);
+    if (flow != -1){
+      sum += flow;
+    }
+  }
+  return sum;
+}
+
+void graph_inflow_real_to_calc(Graph *g){
+  int num = graph_get_n_input_nodes(g);
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_input_node(g, i);
+    node_set_flowrate_calculated(n, node_get_flowrate_measured(n));
+  }
+}
+void graph_inflow_calc_to_real(Graph *g){
+  int num = graph_get_n_input_nodes(g);
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_input_node(g, i);
+    node_set_flowrate_measured(n, node_get_flowrate_calculated(n));
+  }
+}
+void graph_outflow_real_to_calc(Graph *g){
+  int num = graph_get_n_output_nodes(g);
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_output_node(g, i);
+    node_set_flowrate_calculated(n, node_get_flowrate_measured(n));
+  }
+}
+void graph_outflow_calc_to_real(Graph *g){
+  int num = graph_get_n_output_nodes(g);
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_output_node(g, i);
+    node_set_flowrate_measured(n, node_get_flowrate_calculated(n));
+  }
+}
+void graph_set_fluid_viscosity(Graph *g, float v){
+  g->fluid_viscosity  = v;
+  for (int i = 0; i < g->n_pipes; i++){
+    pipe_set_fluid_viscosity(g->pipes[i], v);
+  }
+  for (int i = 0; i < g->n_nodes; i++){
+    node_set_fluid_viscosity(g->nodes[i], v);
+  }
+}
+void graph_set_fluid_density(Graph *g, float d){
+  g->fluid_density = d;
+  for (int i = 0; i < g->n_pipes; i++){
+    pipe_set_fluid_density(g->pipes[i], d);
+  }
+  for (int i = 0; i < g->n_nodes; i++){
+    node_set_fluid_density(g->nodes[i], d);
+  }
+}
+float graph_get_fluid_viscosity(Graph *g){
+  return g->fluid_viscosity;
+}
+float graph_get_fluid_density(Graph *g){
+  return g->fluid_density;
+}
+void graph_set_friction_model(Graph *g, FrictionModel fm){
+  g->friction_model = fm;
+}
+void graph_backpropagate_flowrate(Graph *g){
+  printf("BACK PROPAGATING FLOWRATE\n");
+
+  Node **vector;
+  Node **aux = NULL;
+  int n_nodes = graph_get_n_output_nodes(g);
+  int n_aux = 0;
+  vector = malloc(sizeof(Node *) * n_nodes);
+  for (int i = 0; i < n_nodes; i++){
+    vector[i] = graph_get_nth_output_node(g, i);
+  }
+
+
+  while (n_nodes != 0){
+    for (int i = 0; i < n_nodes; i++){
+      Node *n = vector[i];
+      int n_pipes = n->n_pipes_in;
+
+      //Sum flowrate demanded from outgoing pipes:
+      if (! n->is_output){
+        float sum = 0;
+        for (int k = 0; k < n->n_pipes_out; k++){
+          sum += n->pipes_out[k]->flowrate;
+        }
+
+        n->flowrate_calculated = sum;
+      }
+
+      float sum_area_in = 0;
+      for (int j = 0; j < n_pipes; j++){
+        sum_area_in += n->pipes_in[j]->area;
+      }
+      float flowrate_divided = n->flowrate_calculated / sum_area_in;
+
+
+      for (int j = 0; j < n_pipes; j++){
+        Pipe *p = n->pipes_in[j];
+        p->flowrate = flowrate_divided * p->area;
+
+        p->fluid_velocity = p->flowrate / p->area;
+
+        if (p->orig->is_input == false){
+          int is_added = false;
+          for (int k = 0; k < n_aux; k++){
+            if (aux[k] == p->orig){
+              is_added = true;
+            }
+          }
+          if (! is_added){
+            n_aux ++;
+            if (aux == NULL){
+              aux = malloc(sizeof(Node *) * n_aux);
+            } else {
+              aux = realloc(aux, sizeof(Node *) *n_aux);
+            }
+            aux[n_aux - 1] = p->orig;
+          }
+        }
+      }
+    }
+
+    free(vector);
+    vector = aux;
+    aux = NULL;
+    n_nodes = n_aux;
+    n_aux = 0;
+  }
+  if (aux != NULL){
+    free(aux);
+  }
+  free(vector);
+}
+void graph_propagate_pressure(Graph *g){
+  printf("PROPAGATING PRESSURES:\n");
+
+  Node **vector;
+  Node **aux = NULL;
+  int n_nodes = graph_get_n_input_nodes(g);
+  int n_aux = 0;
+  vector = malloc(sizeof(Node *) * n_nodes);
+
+  for (int i = 0; i < n_nodes; i++){
+    vector[i] = graph_get_nth_input_node(g, i);
+  }
+
+  while (n_nodes != 0){
+    for (int i = 0; i < n_nodes; i++){
+      Node *n = vector[i];
+      int n_pipes = n->n_pipes_out;
+
+      float sum_area_out = 0;
+      for (int j = 0; j < n_pipes; j++){
+        sum_area_out += n->pipes_out[j]->area;
+      }
+
+      float sum_area_in = 0;
+      for (int j = 0; j < n->n_pipes_in; j++){
+        sum_area_in += n->pipes_in[j]->area;
+      }
+
+      //Get pressure for every out-pipe
+      float pressure_divided = n->pressure_calculated;
+
+      // pressure_divided = n->pressure_calculated / sum_area_out;
+      // if (! n->is_input){
+      //   float pout = n->pressure_calculated/sum_area_in;
+      //   float pout = (n->pressure_calculated*sum_area_in)/sum_area_out;
+      //   pressure_divided = pout / sum_area_out;
+      // } else {
+      //   pressure_divided = n->pressure_calculated / sum_area_out;
+      // }
+
+      for (int j = 0; j < n_pipes; j++){
+        Pipe *p = n->pipes_out[j];
+
+        // printf("Doing pipe %d\n", p->ID);
+
+        //Set pressure in
+        p->pressure_in = pressure_divided;
+        // p->pressure_in = pressure_divided * p->area;
+
+        // printf("Pressure in  = %f\n", p->pressure_in);
+
+
+        //Calculate friction
+        pipe_compute_friction(p, g->friction_model);
+
+        //Set pressure in next node
+        float pressure_drop = calculate_pressure_drop(p->fluid_velocity,
+                                                      p->dimensions.circ_diam,
+                                                      p->length,
+                                                      p->friction,
+                                                      p->fluid_density);
+
+        printf("Pressure drop: %f\n", pressure_drop);
+
+        p->pressure_out = p->pressure_in - pressure_drop;
+        // p->pressure_out = p->friction / (pow(p->fluid_velocity, 2) * p->area);
+
+//         printf("Pressure out = %f\n", p->pressure_out);
+
+        p->dest->pressure_calculated = p->pressure_out;
+
+
+
+        // printf("\n");
+        if (p->dest->is_output == false){
+          n_aux++;
+          if (aux == NULL){
+            aux = malloc(sizeof(Node *) * n_aux);
+          } else {
+            aux = realloc(aux, sizeof(Node *) * n_aux);
+          }
+          aux[n_aux - 1] = p->dest;
+        }
+      }
+    }
+    free(vector);
+    vector = aux;
+    aux = NULL;
+    n_nodes = n_aux;
+    n_aux = 0;
+  }
+  if (aux != NULL){
+    free(aux);
+  }
+  free(vector);
+}
+_Bool graph_detect_leaks(Graph *g){
+  float graph_real_inflow = graph_get_total_inflow(g);
+  float graph_calc_inflow = graph_get_total_calculated_inflow(g);
+  float graph_real_outflow = graph_get_total_outflow(g);
+  float graph_calc_outflow = graph_get_total_calculated_outflow(g);
+
+  if (graph_real_inflow == graph_calc_inflow &&
+      graph_real_inflow == graph_real_outflow &&
+      graph_real_inflow == graph_calc_outflow){
+    return false;
+  } else {
+    return true;
   }
 }
