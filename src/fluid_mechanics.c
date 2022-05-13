@@ -25,8 +25,8 @@ float compute_reynolds_number(float vel, float dens, float lineardim, float visc
 }
 
 float calculate_pressure_drop(float vel, float diam, float length, float friction, float dens){
-  // float drop = (((friction*dens)/(2*diam)) * pow(vel, 2) * length);
   float drop = friction * length/diam * dens/2 * pow(vel, 2);
+  // float drop = (friction * length * dens * pow(vel, 2)) / (2 * 9.806 * diam);
   return drop;
   // return ((pressure_in + drop));
 }

@@ -13,12 +13,23 @@
 #define GEOMETRY_CIRCULAR_ANNULUS 3
 #define GEOMETRY_CUSTOM 4
 
+#define MAX_LEAK_OUTFLOW 0.01
+
+// #define __GRAPH_C_DEBUG_
+// #define __GRAPH_C_DETECTION_DEBUG_
+
 union dimensions{
   float circ_diam;
   float squa_side;
   float rect_sides[2];
   float *custom_sides;
 };
+
+typedef struct Leaks{
+  int n;
+  float *outfw;
+  Node **nodes;
+} Leaks;
 
 typedef struct Pipe{
   Node *orig;
@@ -61,6 +72,9 @@ typedef struct Node{
   _Bool is_input;
   _Bool is_output;
 
+  _Bool has_leak;
+  float leak_flowrate;
+
   float height;
 
   float fluid_viscosity;
@@ -73,12 +87,19 @@ typedef struct Node{
   float flowrate_measured;    //m³/s. if -1 -> not measured
   float flowrate_calculated;  //m³/s. if -1 -> not yet calculated
 
+  // float pressure_real;
+  // float flowrate_real;
+
+  _Bool is_measured;
+
   int ID;
 } Node;
 
 typedef struct Graph{
   Node **nodes;
   Pipe **pipes;
+
+  Leaks *leaks;
 
   int *inc_matrix;
   float *mass_conservation_matrix;
@@ -91,7 +112,6 @@ typedef struct Graph{
   int n_pipes;
   int n_nodes;
 } Graph;
-
 
 //Constructors
 Pipe *pipe_new(Pipe **ret, Node *orig, Node *dest){
@@ -109,6 +129,7 @@ Pipe *pipe_new(Pipe **ret, Node *orig, Node *dest){
   new->pressure_out = -1;
 
   new->flowrate = -1;
+  new->flowrate_ideal = -1;
 
   new->fluid_velocity = -1;
 
@@ -121,6 +142,35 @@ Pipe *pipe_new(Pipe **ret, Node *orig, Node *dest){
     *ret = new;
   }
   return new;
+}
+Pipe *pipe_copy(Pipe **r, Pipe *s){
+  Pipe *n = malloc(sizeof(Pipe));
+
+  n->geometry = s->geometry;
+  n->dimensions = s->dimensions;
+  n->area = s->area;
+  n->rough = s->rough;
+  n->length = s->length;
+
+  n->fluid_viscosity = s->fluid_viscosity;
+  n->fluid_density = s->fluid_density;
+
+  n->pressure_in = s->pressure_in;
+  n->pressure_out = s->pressure_out;
+
+  n->flowrate = s->flowrate;
+  n->fluid_velocity = s->fluid_velocity;
+  n->friction = s->friction;
+
+  n->flowrate_ideal = s->flowrate_ideal;
+  n->flowrate_real = s->flowrate_real;
+
+  n->ID = s->ID;
+
+  if (r != NULL){
+    *r = n;
+  }
+  return n;
 }
 Node *node_new(Node **ret){
   Node *new = malloc(sizeof(Node));
@@ -142,15 +192,61 @@ Node *node_new(Node **ret){
   new->is_input = false;
   new->is_output = false;
 
+  new->has_leak = false;
+  new->leak_flowrate = 0;
+
   new->pressure_measured = -1;
   new->pressure_calculated = -1;
   new->flowrate_measured = -1;
   new->flowrate_calculated = -1;
 
+  // new->pressure_real = -1;
+  // new->flowrate_real = -1;
+
+  new->is_measured = false;
+
   if (ret != NULL){
     *ret = new;
   }
   return new;
+}
+Node *node_copy(Node **r, Node *s){
+  Node *n = malloc(sizeof(Node));
+
+  n->n_pipes_in = s->n_pipes_in;
+  n->n_pipes_out = s->n_pipes_out;
+
+  n->pipes_in = malloc(sizeof(Pipe *) * n->n_pipes_in);
+  n->pipes_out = malloc(sizeof(Pipe *) * n->n_pipes_out);
+
+  n->is_junction = s->is_junction;
+  n->is_connected = s->is_connected;
+  n->is_input = s->is_input;
+  n->is_output = s->is_output;
+
+  n->has_leak = s->has_leak;
+  n->leak_flowrate = s->leak_flowrate;
+
+  n->height = s->height;
+
+  n->fluid_velocity = s->fluid_velocity;
+
+  n->fluid_viscosity = s->fluid_viscosity;
+  n->fluid_density = s->fluid_density;
+
+  n->pressure_measured = s->pressure_measured;
+  n->pressure_calculated = s->pressure_calculated;
+  n->flowrate_measured = s->flowrate_measured;
+  n->flowrate_calculated = s->flowrate_calculated;
+
+  n->is_measured = s->is_measured;
+
+  n->ID = s->ID;
+
+  if (r != NULL){
+    *r = n;
+  }
+  return n;
 }
 Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
   Graph *g = malloc(sizeof(Graph));
@@ -172,6 +268,8 @@ Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
 
   g->inc_matrix = calloc(sizeof(int) * n_nodes * n_pipes, 1);
   g->mass_conservation_matrix = calloc(sizeof(float) * n_nodes * n_pipes, 1);
+
+  g->leaks = NULL;
 
 
   //Create nodes
@@ -196,13 +294,146 @@ Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
   }
   return g;
 }
+Leaks *leaks_new(Leaks **r, int n){
+  Leaks *l = malloc(sizeof(Leaks));
+  l->n = n;
+  l->outfw = malloc(sizeof(float) * n);
+  l->nodes = malloc(sizeof(Node *) * n);
+
+  if (r != NULL){
+    *r = l;
+  }
+  return l;
+}
+Leaks *leaks_copy(Leaks **r, Leaks *s){
+  Leaks *n = malloc(sizeof(Leaks));
+
+  n->n = s->n;
+  n->outfw = malloc(sizeof(float) * s->n);
+  n->nodes = malloc(sizeof(Node *) * s->n);
+
+  if (r != NULL){
+    *r = n;
+  }
+  return n;
+}
+Graph *graph_copy(Graph **r, Graph *s){
+  Graph *n = malloc(sizeof(Graph));
+  n->n_pipes = s->n_pipes;
+  n->n_nodes = s->n_nodes;
+  n->nodes = malloc(sizeof(Node *) * n->n_nodes);
+  n->pipes = malloc(sizeof(Pipe *) * n->n_pipes);
+
+  //Copy node and pipe values
+  for (int i = 0; i < n->n_pipes; i++){
+    pipe_copy(&n->pipes[i], s->pipes[i]);
+  }
+  for (int i = 0; i < n->n_nodes; i++){
+    node_copy(&n->nodes[i], s->nodes[i]);
+  }
+
+  //Set node and pipe handles
+  for (int i = 0; i < n->n_pipes; i++){
+    n->pipes[i]->orig = n->nodes[s->pipes[i]->orig->ID];
+    n->pipes[i]->dest = n->nodes[s->pipes[i]->dest->ID];
+  }
+  for (int i = 0; i < n->n_nodes; i++){
+    Node *node = n->nodes[i];
+    for (int j = 0; j < node->n_pipes_in; j++){
+      node->pipes_in[j] = n->pipes[s->nodes[i]->pipes_in[j]->ID];
+    }
+    for (int j = 0; j < node->n_pipes_out; j++){
+      node->pipes_out[j] = n->pipes[s->nodes[i]->pipes_out[j]->ID];
+    }
+  }
+
+  n->inc_matrix = calloc(sizeof(int) * n->n_nodes * n->n_pipes, 1);
+  n->mass_conservation_matrix = calloc(sizeof(float) * n->n_nodes * n->n_pipes, 1);
+
+  for (int j = 0; j < n->n_nodes; j++){
+  for (int i = 0; i < n->n_pipes; i++){
+    n->mass_conservation_matrix[j*n->n_pipes + i] = s->mass_conservation_matrix[j*n->n_pipes + i];
+    n->inc_matrix[j*n->n_pipes + i] = s->inc_matrix[j*n->n_pipes + i];
+  }
+  }
+
+  n->friction_model = s->friction_model;
+
+  n->fluid_viscosity = s->fluid_viscosity;
+  n->fluid_density = s->fluid_density;
+
+  //Copy leak data
+  leaks_copy(&n->leaks, s->leaks);
+  Leaks *l = n->leaks;
+
+  //Set leak handlers
+  for (int i = 0; i < l->n; i++){
+    l->nodes[i] = n->nodes[s->leaks->nodes[i]->ID];
+  }
+
+
+  if (r != NULL){
+    *r = n;
+  }
+  return n;
+}
+
+
+//Destructors
+void pipe_destroy(Pipe *p){
+  if (p != NULL){
+    free(p);
+  }
+}
+void node_destroy(Node *n){
+  if (n == NULL){
+    return;
+  }
+  free(n->pipes_in);
+  free(n->pipes_out);
+
+  free(n);
+  return;
+}
+void leaks_destroy(Leaks *l){
+  if (l == NULL){
+    return;
+  }
+
+  free(l->outfw);
+  free(l->nodes);
+  free(l);
+  return;
+}
+void graph_destroy(Graph *g){
+  if (g == NULL){
+    return;
+  }
+
+  for (int i = 0; i < g->n_pipes; i++){
+    pipe_destroy(g->pipes[i]);
+  }
+  for (int i = 0; i < g->n_nodes; i++){
+    node_destroy(g->nodes[i]);
+  }
+  free(g->pipes);
+  free(g->nodes);
+  leaks_destroy(g->leaks);
+
+  free(g->inc_matrix);
+  free(g->mass_conservation_matrix);
+
+  free(g);
+  return;
+}
+
 
 //Node functions
 void node_add_pipe_in(Node *n, Pipe *p){
   if (n->pipes_in == NULL){
     n->pipes_in = malloc(sizeof(Pipe*));
   } else {
-    n->pipes_in = realloc(n->pipes_in, sizeof(Pipe*) * n->n_pipes_in + 1);
+    n->pipes_in = realloc(n->pipes_in, sizeof(Pipe*) * (n->n_pipes_in + 1));
   }
 
   n->pipes_in[n->n_pipes_in] = p;
@@ -224,9 +455,12 @@ void node_add_pipe_out(Node *n, Pipe *p){
   if (n->pipes_out == NULL){
     n->pipes_out = malloc(sizeof(Pipe*));
   } else {
-    n->pipes_out = realloc(n->pipes_out, sizeof(Pipe*) * n->n_pipes_out + 1);
+    n->pipes_out = realloc(n->pipes_out, sizeof(Pipe*) * (n->n_pipes_out + 1));
   }
 
+  #ifdef __GRAPH_C_DEBUG_
+  printf("ID: %d, pipes: %d, pipe ID: %d\n", n->ID, n->n_pipes_out, p->ID);
+  #endif
   n->pipes_out[n->n_pipes_out] = p;
   n->n_pipes_out += 1;
 
@@ -249,6 +483,10 @@ int node_get_id(Node *n){
   return n->ID;
 }
 void node_print(Node *n){
+  if (n == NULL){
+    printf("(null)\n");
+    return;
+  }
   printf("Node with ID %d\n", n->ID);
 
   if (n->is_connected){
@@ -275,6 +513,12 @@ void node_print(Node *n){
       printf("Output node");
     }
     printf("\n");
+
+    if (n->has_leak){
+      printf("Leaks at %f m³/s\n", n->leak_flowrate);
+    } else {
+      printf("Doesn't leak\n");
+    }
 
     if (n->pressure_measured != -1){  //Pressure measured
       printf("Pressure measured:   %g Pa\n", n->pressure_measured);
@@ -313,10 +557,15 @@ void node_print(Node *n){
         printf("Leakage detected!!!\n");
       }
     }
-
-
   } else {    //Not connected
     printf("Disconnected node\n");
+  }
+}
+void graph_set_output_flowrates(Graph *g, float *outflows){
+  int num = graph_get_n_output_nodes(g);
+  for (int i = 0; i < num; i++){
+    Node *n = graph_get_nth_output_node(g, i);
+    node_set_flowrate_measured(n, outflows[i]);
   }
 }
 void node_set_height(Node *n, float h){
@@ -326,6 +575,7 @@ float node_get_height(Node *n){
   return n->height;
 }
 void node_set_flowrate_measured(Node *n, float f){
+  n->is_measured = true;
   n->flowrate_measured = f;
 }
 float node_get_flowrate_measured(Node *n){
@@ -340,10 +590,11 @@ float node_get_flowrate_calculated(Node *n){
 float node_input_compute_pressure(Node *n){
   float p = 101325 + n->height*9.81*n->fluid_density;
   // float p = n->height*9.806*n->fluid_density;
-  n->pressure_measured = p;
+  node_set_pressure_measured(n, p);
   return p;
 }
 void node_set_pressure_measured(Node *n, float p){
+  n->is_measured = true;
   n->pressure_measured = p;
 }
 float node_get_pressure_measured(Node *n){
@@ -373,6 +624,13 @@ void node_set_fluid_velocity(Node *n, float v){
 float node_get_fluid_velocity(Node *n){
   return n->fluid_velocity;
 }
+void node_set_leak_flowrate(Node *n, float f){
+  n->has_leak = true;
+  n->leak_flowrate = f;
+}
+float node_get_leak_flowrate(Node *n){
+  return n->leak_flowrate;
+}
 
 //Pipe functions
 int pipe_set_diam(Pipe *p, float d){
@@ -380,6 +638,8 @@ int pipe_set_diam(Pipe *p, float d){
       p->geometry == GEOMETRY_CIRCULAR_ANNULUS){
     p->dimensions.circ_diam = d;
     p->area = 1.0/4 * pow(PI, 2) * d;
+    // p->area = PI/4 * pow(d, 2);
+    // p->area = PI * pow(d/2, 2);
     return 0;
   }
   return -1;
@@ -414,6 +674,10 @@ void pipe_set_geometry(Pipe *p, int g){
   p->geometry = g;
 }
 void pipe_print(Pipe *p){
+  if (p == NULL){
+    printf("(null)\n");
+    return;
+  }
   printf("Pipe with ID %d:\n", p->ID);
   printf("Length: %gm\n", p->length);
   switch(p->geometry){
@@ -517,6 +781,10 @@ Pipe **graph_get_pipes(Graph *g){
   return g->pipes;
 }
 void graph_print_incidence_matrix(Graph *g){
+  if (g->inc_matrix == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int j = 0; j < g->n_nodes; j++){
   for (int i = 0; i < g->n_pipes; i++){
     if (g->inc_matrix[j*g->n_pipes + i] < 0){
@@ -529,6 +797,10 @@ void graph_print_incidence_matrix(Graph *g){
   }
 }
 void graph_print_mass_conservation_matrix(Graph *g){
+  if (g->mass_conservation_matrix == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int j = 0; j < g->n_nodes; j++){
   for (int i = 0; i < g->n_pipes; i++){
     if (g->mass_conservation_matrix[j*g->n_pipes + i] < 0){
@@ -543,6 +815,10 @@ void graph_print_mass_conservation_matrix(Graph *g){
 void graph_print(Graph *g){
   printf("---------------------------------------\n");
   printf("Printing graph: \n");
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   printf("PIPES: \n");
   for (int i = 0; i < g->n_pipes; i++){
     pipe_print(g->pipes[i]);
@@ -560,9 +836,16 @@ void graph_print(Graph *g){
 
   // printf("\n\nMASS CONSERVATION MATRIX:\n");
   // graph_print_mass_conservation_matrix(g);
+
+  printf("\n\nLEAK DATA: \n");
+  graph_print_leaks_data(g);
   printf("---------------------------------------\n");
 }
 void graph_print_disconnected_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int i = 0; i < g->n_nodes; i++){
     if (!g->nodes[i]->is_connected){
       node_print(g->nodes[i]);
@@ -571,6 +854,10 @@ void graph_print_disconnected_nodes(Graph *g){
   }
 }
 void graph_print_connected_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int i = 0; i < g->n_nodes; i++){
     if (g->nodes[i]->is_connected){
       node_print(g->nodes[i]);
@@ -579,6 +866,10 @@ void graph_print_connected_nodes(Graph *g){
   }
 }
 void graph_print_junction_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int i = 0; i < g->n_nodes; i++){
     if (g->nodes[i]->is_junction){
       node_print(g->nodes[i]);
@@ -587,6 +878,10 @@ void graph_print_junction_nodes(Graph *g){
   }
 }
 void graph_print_input_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int i = 0; i < g->n_nodes; i++){
     if (g->nodes[i]->is_input){
       node_print(g->nodes[i]);
@@ -595,8 +890,24 @@ void graph_print_input_nodes(Graph *g){
   }
 }
 void graph_print_output_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
   for (int i = 0; i < g->n_nodes; i++){
     if (g->nodes[i]->is_output){
+      node_print(g->nodes[i]);
+      printf("\n");
+    }
+  }
+}
+void graph_print_leak_nodes(Graph *g){
+  if (g == NULL){
+    printf("(null)\n");
+    return;
+  }
+  for (int i = 0; i < g->n_nodes; i++){
+    if (g->nodes[i]->has_leak){
       node_print(g->nodes[i]);
       printf("\n");
     }
@@ -650,6 +961,15 @@ int graph_get_n_output_nodes(Graph *g){
   }
   return sum;
 }
+int graph_get_n_leak_nodes(Graph *g){
+  int sum = 0;
+  for (int i = 0; i < g->n_nodes; i++){
+    if (g->nodes[i]->has_leak){
+      sum++;
+    }
+  }
+  return sum;
+}
 Node *graph_get_nth_node(Graph *g, int i){
   return g->nodes[i];
 }
@@ -681,6 +1001,18 @@ Node *graph_get_nth_junction_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
     if (g->nodes[i]->is_junction){
+      if (index == sum){
+        return g->nodes[i];
+      }
+      sum++;
+    }
+  }
+  return NULL;
+}
+Node *graph_get_nth_leak_node(Graph *g, int index){
+  int sum = 0;
+  for (int i = 0; i < g->n_nodes; i++){
+    if (g->nodes[i]->has_leak){
       if (index == sum){
         return g->nodes[i];
       }
@@ -724,6 +1056,23 @@ float graph_get_total_outflow(Graph *g){
       sum += flow;
     }
   }
+  int num_leaks = graph_get_n_leak_nodes(g);
+  for (int i = 0; i < num_leaks; i++){
+    Node *n = graph_get_nth_leak_node(g, i);
+    float flow = node_get_leak_flowrate(n);
+    sum += flow;
+  }
+  return sum;
+}
+float graph_get_total_leak_outflow(Graph *g){
+  int num_leaks = graph_get_n_leak_nodes(g);
+  float sum = 0;
+  for (int i = 0; i < num_leaks; i++){
+    Node *n = graph_get_nth_leak_node(g, i);
+    float flow = node_get_leak_flowrate(n);
+    sum += flow;
+  }
+  printf("%f\n", sum);
   return sum;
 }
 float graph_get_total_calculated_outflow(Graph *g){
@@ -750,6 +1099,18 @@ void graph_set_inflow_evenly(Graph *g){
     node_set_flowrate_calculated(n, even_outflow);
   }
 }
+void graph_add_leaks_to_inflow(Graph *g){
+  int num_inputs = graph_get_n_input_nodes(g);
+  float total_outflow = graph_get_total_outflow(g);
+
+  float even_outflow = total_outflow / num_inputs;
+
+  for (int i = 0; i < num_inputs; i++){
+    Node *n = graph_get_nth_input_node(g, i);
+    node_set_flowrate_measured(n, even_outflow);
+  }
+}
+
 float graph_get_total_calculated_inflow(Graph *g){
   int num = graph_get_n_input_nodes(g);
   float sum = 0;
@@ -831,7 +1192,9 @@ void graph_set_friction_model(Graph *g, FrictionModel fm){
   g->friction_model = fm;
 }
 void graph_backpropagate_flowrate(Graph *g){
+  #ifdef __GRAPH_C_DEBUG_
   printf("BACK PROPAGATING FLOWRATE\n");
+  #endif
 
   Node **vector;
   Node **aux = NULL;
@@ -903,7 +1266,9 @@ void graph_backpropagate_flowrate(Graph *g){
   free(vector);
 }
 void graph_propagate_pressure(Graph *g){
+  #ifdef __GRAPH_C_DEBUG_
   printf("PROPAGATING PRESSURES:\n");
+  #endif
 
   Node **vector;
   Node **aux = NULL;
@@ -964,12 +1329,14 @@ void graph_propagate_pressure(Graph *g){
                                                       p->friction,
                                                       p->fluid_density);
 
+        #ifdef __GRAPH_C_DEBUG_
         printf("Pressure drop: %f\n", pressure_drop);
+        #endif
 
         p->pressure_out = p->pressure_in - pressure_drop;
         // p->pressure_out = p->friction / (pow(p->fluid_velocity, 2) * p->area);
 
-//         printf("Pressure out = %f\n", p->pressure_out);
+        // printf("Pressure out = %f\n", p->pressure_out);
 
         p->dest->pressure_calculated = p->pressure_out;
 
@@ -998,11 +1365,94 @@ void graph_propagate_pressure(Graph *g){
   }
   free(vector);
 }
-_Bool graph_detect_leaks(Graph *g){
+
+//LEAKS FUNCTIONS
+Leaks *graph_generate_random_leaks(Graph *g, int num){
+  //Check if num is valid
+  int n_junction = graph_get_n_junction_nodes(g);
+  if (num > n_junction){
+    return NULL;
+  }
+
+  //Free previous leaks memory
+  if (g->leaks != NULL){
+    free(g->leaks);
+  }
+  Leaks *leaks = malloc(sizeof(Leaks));
+
+  //Generate leaks structure
+  leaks->n = num;
+  leaks->outfw = malloc(sizeof(float) * num);
+  leaks->nodes = malloc(sizeof(Node *) * num);
+
+  //Auxiliary variables
+  _Bool is_valid;
+  int node;
+  int k = 0;
+  int aux[num];
+  for (int i = 0; i < num; i++){
+    aux[i] = -1;
+  }
+
+  //Generate the leaks...
+
+  //For each leak to generate...
+  for (int i = 0; i < num; i++){
+    is_valid = false;
+
+    //Generate randoms until valid
+    while (! is_valid){
+      node = random() % n_junction;
+
+      //check if valid
+      is_valid = true;
+      for (int j = 0; j < num; j++){
+        if (aux[j] == node){
+          is_valid = false;
+        }
+      }
+
+      //Generate the leak
+      if (is_valid){
+        float outflow = (float)rand()/(float)(RAND_MAX/MAX_LEAK_OUTFLOW);
+        Node *n = graph_get_nth_junction_node(g, node);
+        node_set_leak_flowrate(n, outflow);
+        leaks->nodes[k] = n;
+
+        aux[k] = node;
+        k++;
+      }
+
+    }
+  }
+
+  g->leaks = leaks;
+  return leaks;
+}
+void graph_print_leaks_data(Graph *g){
+  Leaks *l = g->leaks;
+  if (l == NULL){
+    printf("Leaks not yet initialized\n");
+    return;
+  }
+  for (int i = 0; i < l->n; i++){
+    Node *n = l->nodes[i];
+    printf("Node %d: %f m³/s\n", node_get_id(n), node_get_leak_flowrate(n));
+  }
+}
+_Bool graph_has_leaks(Graph *g){
   float graph_real_inflow = graph_get_total_inflow(g);
   float graph_calc_inflow = graph_get_total_calculated_inflow(g);
   float graph_real_outflow = graph_get_total_outflow(g);
   float graph_calc_outflow = graph_get_total_calculated_outflow(g);
+
+  #ifdef __GRAPH_C_DETECTION_DEBUG_
+  printf("Leak detection: \n");
+  printf("Real inflow:  %f\n", graph_real_inflow);
+  printf("Calc inflow:  %f\n", graph_calc_inflow);
+  printf("Real outflow: %f\n", graph_real_outflow);
+  printf("Calc outflow: %f\n", graph_calc_outflow);
+  #endif
 
   if (graph_real_inflow == graph_calc_inflow &&
       graph_real_inflow == graph_real_outflow &&
@@ -1011,4 +1461,12 @@ _Bool graph_detect_leaks(Graph *g){
   } else {
     return true;
   }
+}
+Leaks *graph_find_leaks(Graph *g){
+  Leaks *l = leaks_new(NULL, 0);
+
+  return l;
+}
+Graph *graph_optimize_naive(Graph *g){
+
 }

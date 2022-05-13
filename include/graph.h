@@ -3,12 +3,26 @@
 typedef struct Pipe Pipe;
 typedef struct Node Node;
 
+typedef struct Leaks Leaks;
+
 typedef struct Graph Graph;
 
 Pipe *pipe_new(Pipe **, Node *, Node *);
 Node *node_new(Node **);
-
 Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig);
+
+Node *node_copy(Node **r, Node *s);
+Pipe *pipe_copy(Pipe **r, Pipe *s);
+Graph *graph_copy(Graph **r, Graph *s);
+
+Leaks *leaks_new(Leaks **r, int n);
+Leaks *leaks_copy(Leaks **r, Leaks *s);
+
+
+void node_destroy(Node *n);
+void pipe_destroy(Pipe *p);
+void leaks_destroy(Leaks *l);
+void graph_destroy(Graph *g);
 
 //Node functions
 void node_add_pipe_in(Node *n, Pipe *p);
@@ -61,6 +75,9 @@ void graph_print_connected_nodes(Graph *g);
 void graph_print_junction_nodes(Graph *g);
 void graph_print_input_nodes(Graph *g);
 void graph_print_output_nodes(Graph *g);
+void graph_print_leak_nodes(Graph *g);
+
+void graph_set_output_flowrates(Graph *g, float *outflows);
 
 void graph_compute_mass_conservation_matrix(Graph *g);
 
@@ -73,6 +90,7 @@ int graph_get_n_connected_nodes(Graph *g);
 int graph_get_n_junction_nodes(Graph *g);
 int graph_get_n_input_nodes(Graph *g);
 int graph_get_n_output_nodes(Graph *g);
+int graph_get_n_leak_nodes(Graph *g);
 
 Node *graph_get_nth_node(Graph *g, int);
 Node *graph_get_nth_disconnected_node(Graph *g, int);
@@ -80,12 +98,15 @@ Node *graph_get_nth_connected_node(Graph *g, int);
 Node *graph_get_nth_junction_node(Graph *g, int);
 Node *graph_get_nth_input_node(Graph *g, int);
 Node *graph_get_nth_output_node(Graph *g, int);
+Node *graph_get_nth_leak_node(Graph *g, int);
 
 float graph_get_total_outflow(Graph *g);
 float graph_get_total_calculated_outflow(Graph *g);
 void graph_set_inflow_evenly(Graph *g);
+void graph_add_leaks_to_inflow(Graph *g);
 float graph_get_total_inflow(Graph *g);
 float graph_get_total_calculated_inflow(Graph *g);
+float graph_get_total_leak_outflow(Graph *g);
 
 void graph_inflow_real_to_calc(Graph *g);
 void graph_inflow_calc_to_real(Graph *g);
@@ -97,7 +118,15 @@ void graph_set_fluid_density(Graph *g, float d);
 float graph_get_fluid_viscosity(Graph *g);
 float graph_get_fluid_density(Graph *g);
 void graph_set_friction_model(Graph *g, FrictionModel fm);
+
+//Propagates flowrate and velocity
 void graph_backpropagate_flowrate(Graph *g);
+//Propagates pressure and computes friction
 void graph_propagate_pressure(Graph *g);
 
-_Bool graph_detect_leaks(Graph *g);
+Leaks *graph_generate_random_leaks(Graph *g, int num);
+void graph_print_leaks_data(Graph *g);
+
+_Bool graph_has_leaks(Graph *g);
+Leaks *graph_find_leaks(Graph *g);
+Graph *graph_optimize_naive(Graph *g);
