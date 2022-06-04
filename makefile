@@ -1,9 +1,14 @@
-BDIR = build
 SDIR = src
 
 IDIR = include
-CC = gcc
+CCCMD = gcc
 CFLAGS = -I$(IDIR) -Wall
+
+debug: CC = $(CCCMD) -D__GRAPH_C_DEBUG_ -D__GRAPH_C_DETECTION_DEBUG_
+debug: BDIR = debug
+
+release: CC = $(CCCMD) -O2
+release: BDIR = build
 
 ODIR=.obj
 LDIR=lib
@@ -17,12 +22,17 @@ _OBJ = main.o graph.o fluid_mechanics.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
-	mkdir -p $(ODIR)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-main: $(OBJ)
+release: $(OBJ)
+	mkdir -p $(ODIR)
 	mkdir -p $(BDIR)
-	$(CC) -o $(BDIR)/$@ $^ $(CFLAGS) $(LIBS)
+	$(CC) -o $(BDIR)/LeakDetection $^ $(CFLAGS) $(LIBS)
+
+debug: $(OBJ)
+	mkdir -p $(ODIR)
+	mkdir -p $(BDIR)
+	$(CC) -o $(BDIR)/LeakDetection $^ $(CFLAGS) $(LIBS)
 
 .PHONY: clean
 clean:
