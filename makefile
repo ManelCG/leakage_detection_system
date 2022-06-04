@@ -15,10 +15,10 @@ LDIR=lib
 
 LIBS = -lm
 
-_DEPS = graph.h fluid_mechanics.h
+_DEPS = graph.h fluid_mechanics.h lodepng.h
 DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
-_OBJ = main.o graph.o fluid_mechanics.o
+_OBJ = main.o graph.o fluid_mechanics.o lodepng.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 $(ODIR)/%.o: $(SDIR)/%.c $(DEPS)
@@ -39,4 +39,4 @@ clean:
 	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~
 
 .PHONY: all
-all: main clean
+all: release clean

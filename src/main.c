@@ -6,6 +6,8 @@
 
 #include <fluid_mechanics.h>
 
+#include <lodepng.h>
+
 int main(int argc, char *argv[]){
   //INITIAL DATA:
   float water_viscosity = 0.08903; float water_density = 997.08;   //Asume 20ºC
@@ -105,6 +107,10 @@ int main(int argc, char *argv[]){
     printf("Couldnt find leaks\n");
   }
 
+  unsigned char *plot = graph_plot(g, 1920, 1080);
+  // lodepng_encode32_file("plot.png", plot, 1920, 1080);
+
+  free(plot);
   graph_destroy(g);
   leaks_destroy(leaks_calc);
 }

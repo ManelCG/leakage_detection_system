@@ -18,11 +18,13 @@ Graph *graph_copy(Graph **r, Graph *s);
 Leaks *leaks_new(Leaks **r, int n);
 Leaks *leaks_copy(Leaks **r, Leaks *s);
 
-
 void node_destroy(Node *n);
 void pipe_destroy(Pipe *p);
 void leaks_destroy(Leaks *l);
 void graph_destroy(Graph *g);
+
+//IO
+unsigned char *graph_plot(Graph *g, unsigned int w, unsigned int h);
 
 //Node functions
 void node_add_pipe_in(Node *n, Pipe *p);
@@ -76,6 +78,10 @@ void graph_print_junction_nodes(Graph *g);
 void graph_print_input_nodes(Graph *g);
 void graph_print_output_nodes(Graph *g);
 void graph_print_leak_nodes(Graph *g);
+
+void graph_calculate_geometry(Graph *g);
+int graph_get_depth(Graph *);
+int graph_get_width(Graph *);
 
 void graph_set_output_flowrates(Graph *g, float *outflows);
 

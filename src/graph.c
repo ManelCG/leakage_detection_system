@@ -99,6 +99,9 @@ typedef struct Graph{
   Node **nodes;
   Pipe **pipes;
 
+  int depth;
+  int width;
+
   Leaks *leaks;
 
   int *inc_matrix;
@@ -292,6 +295,8 @@ Graph *graph_new(Graph **ret, int n_pipes, int *sorig, int *torig){
   if (ret != NULL){
     *ret = g;
   }
+  g->depth = -1;
+  g->width = -1;
   return g;
 }
 Leaks *leaks_new(Leaks **r, int n){
@@ -323,6 +328,9 @@ Graph *graph_copy(Graph **r, Graph *s){
   n->n_nodes = s->n_nodes;
   n->nodes = malloc(sizeof(Node *) * n->n_nodes);
   n->pipes = malloc(sizeof(Pipe *) * n->n_pipes);
+
+  n->width = s->width;
+  n->depth = s->depth;
 
   //Copy node and pipe values
   for (int i = 0; i < n->n_pipes; i++){
@@ -1468,5 +1476,62 @@ Leaks *graph_find_leaks(Graph *g){
   return l;
 }
 Graph *graph_optimize_naive(Graph *g){
+  return NULL;
+}
+void graph_calculate_geometry(Graph *G){
+  Graph *g = graph_copy(NULL, G);
+  int n_input = graph_get_n_input_nodes(g);
+  int width = n_input;
+  int depth = 0;
+  _Bool finished;
 
+  do {
+    finished = true;
+    depth++;
+    n_input = graph_get_n_input_nodes(g);
+    int level_width = 0;
+    Node **nodev = malloc(sizeof(Node *) * n_input);
+    for (int i = 0; i < n_input; i++){
+      nodev[i] = graph_get_nth_input_node(g, i);
+    }
+    for (int i = 0; i < n_input; i++){
+      Node *n = nodev[i];
+      n->is_input = false;
+      level_width += n->n_pipes_out;
+      for (int p = 0; p < n->n_pipes_out; p++){
+        n->pipes_out[p]->dest->is_input = true;
+        finished = false;
+      }
+    }
+    if (level_width >= width){
+      width = level_width;
+    }
+
+    free(nodev);
+  } while (! finished);
+
+  graph_destroy(g);
+  G->width = width;
+  G->depth = depth;
+}
+int graph_get_depth(Graph *g){
+  if (g->depth == -1){
+    graph_calculate_geometry(g);
+  }
+  return g->depth;
+}
+int graph_get_width(Graph *g){
+  if (g->width == -1){
+    graph_calculate_geometry(g);
+  }
+  return g->width;
+}
+unsigned char *graph_plot(Graph *g, unsigned int w, unsigned int h){
+  unsigned char *plot = calloc(w*h*4, 1);
+  int depth = graph_get_depth(g);
+  printf("DEPTH: %d\n", depth);
+  int width = graph_get_width(g);
+  printf("WIDTH: %d\n", width);
+
+  return plot;
 }
