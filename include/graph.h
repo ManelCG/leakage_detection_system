@@ -24,7 +24,7 @@ void leaks_destroy(Leaks *l);
 void graph_destroy(Graph *g);
 
 //IO
-unsigned char *graph_plot(Graph *g, unsigned int w, unsigned int h);
+void graph_plot(Graph *g, unsigned int w, unsigned int h);
 
 //Node functions
 void node_add_pipe_in(Node *n, Pipe *p);

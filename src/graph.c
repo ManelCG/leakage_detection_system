@@ -5,6 +5,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <unistd.h>
+#include <string.h>
+
 #define PI 3.1415926536
 
 #define GEOMETRY_CIRCULAR 0
@@ -1526,12 +1529,205 @@ int graph_get_width(Graph *g){
   }
   return g->width;
 }
-unsigned char *graph_plot(Graph *g, unsigned int w, unsigned int h){
-  unsigned char *plot = calloc(w*h*4, 1);
-  int depth = graph_get_depth(g);
-  printf("DEPTH: %d\n", depth);
-  int width = graph_get_width(g);
-  printf("WIDTH: %d\n", width);
+void graph_plot(Graph *g, unsigned int w, unsigned int h){
+  int p[2], pid;
 
-  return plot;
+  g = graph_copy(NULL, g);
+
+  graph_print(g);
+
+  if (pipe(p) < 0){
+    perror("Could not pipe:");
+  }
+  if ((pid = fork()) < 0){
+    perror("Could not fork:");
+  }
+
+  if (pid == 0){
+    close(0);
+    dup(p[0]);
+    close(p[0]);
+    close(p[1]);
+
+    close(1);
+    fopen("test.png", "w");
+
+    execlp("dot", "dot", "-Tpng", NULL);
+    exit(1);
+  }
+  close(p[0]);
+
+  int str_size = 1024;
+  int buffer_size = 1024;
+
+  char *str = malloc(sizeof(char) * str_size);
+  char buffer[buffer_size];
+  strcpy(str, "digraph G{fontname=\"Helvetica,Arial,sans-serif\"\nnode [fontname=\"Helvetica,Arial,sans-serif\"]\nedge [fontname=\"Helvetica,Arial,sans-serif\"]\n");
+
+  //INPUT NODE FORMAT
+  sprintf(buffer, "node [shape=ellipse color=blue]; ");
+  if (strlen(str) + strlen(buffer) + 10 > str_size){
+    str_size *= 2;
+    str = realloc(str, str_size);
+  }
+  strcat(str, buffer);
+  for (int i = 0; i < graph_get_n_input_nodes(g); i++){
+    Node *node = graph_get_nth_input_node(g, i);
+
+    sprintf(buffer, "%d; ", node->ID);
+    if (strlen(str) + strlen(buffer) + 10 < str_size){
+      str_size*=2;
+      str = realloc(str, str_size);
+    }
+    strcat(str, buffer);
+  }
+
+  //JUNCTION NODE FORMAT
+  sprintf(buffer, "node [shape=diamond color=black]; ");
+  if (strlen(str) + strlen(buffer) + 10 > str_size){
+    str_size *= 2;
+    str = realloc(str, str_size);
+  }
+  strcat(str, buffer);
+  for (int i = 0; i < graph_get_n_junction_nodes(g); i++){
+    Node *node = graph_get_nth_junction_node(g, i);
+
+    sprintf(buffer, "%d; ", node->ID);
+    if (strlen(str) + strlen(buffer) + 10 < str_size){
+      str_size*=2;
+      str = realloc(str, str_size);
+    }
+    strcat(str, buffer);
+  }
+
+  //OUTPUT NODE FORMAT
+  sprintf(buffer, "node [shape=box color=green]; ");
+  if (strlen(str) + strlen(buffer) + 10 > str_size){
+    str_size*=2;
+    str = realloc(str, str_size);
+  }
+  strcat(str, buffer);
+  for (int i = 0; i < graph_get_n_output_nodes(g); i++){
+    Node *node = graph_get_nth_output_node(g, i);
+
+    sprintf(buffer, "%d; ", node->ID);
+    if (strlen(str) + strlen(buffer) + 10 > str_size){
+      str_size*=2;
+      str = realloc(str, str_size);
+    }
+    strcat(str, buffer);
+  }
+
+  //DRAW NODES
+  Node **node_vector;
+  Node **aux = NULL;
+
+  int vector_len = graph_get_n_input_nodes(g);
+  int aux_len = 0;
+  node_vector = malloc(sizeof(Node *) * vector_len);
+
+  for (int i = 0; i < vector_len; i++){
+    node_vector[i] = graph_get_nth_input_node(g, i);
+  }
+
+  while (vector_len != 0){
+    for (int i = 0; i < vector_len; i++){
+      Node *n = node_vector[i];
+      int n_pipes = n->n_pipes_out;
+      _Bool in_leak_range = false;
+
+      // printf("Node %d measure: %d\n", n->ID, n->is_measured);
+      // printf("Flowrate %g vs %g\n", n->flowrate_calculated, n->flowrate_measured);
+
+      // float flowrate_node ;
+      float flowrate_inpipes = 0;
+      float flowrate_outpipes = 0;
+      for (int j = 0; j < n->n_pipes_out; j++){
+        flowrate_outpipes += n->pipes_out[j]->flowrate;
+      }
+      for (int j = 0; j < n->n_pipes_in; j++){
+        flowrate_inpipes += n->pipes_in[j]->flowrate;
+      }
+
+      // if (n->is_measured){
+      //   if (n->flowrate_calculated != n->flowrate_measured){
+      //     printf("Node %d is in leak range\n", n->ID);
+      //     in_leak_range = true;
+      //   }
+      // }
+
+      printf("\n");
+      for (int j = 0; j < n_pipes; j++){
+        Pipe *p = n->pipes_out[j];
+
+        printf("Drawing %d->%d\n", p->orig->ID, p->dest->ID);
+
+        sprintf(buffer, "%d->%d ", p->orig->ID, p->dest->ID);
+        if (strlen(str) + strlen(buffer) + 10 > str_size){
+          str_size*=2;
+          str = realloc(str, str_size);
+        }
+        strcat(str, buffer);
+
+        if (in_leak_range){
+          sprintf(buffer, "[color=red] ");
+          if (strlen(str) + strlen(buffer) + 10 > str_size){
+            str_size*=2;
+            str = realloc(str, str_size);
+          }
+          strcat(str, buffer);
+        }
+
+        // sprintf(buffer, "[label=\"Len: %.1fm\nPrssIn: %.1f Pa\nPrssOut: %.1f Pa\nFlowrate: %.4f m³/s\n\"];", p->length, p->pressure_in, p->pressure_out, p->flowrate);
+        // if (strlen(str) + strlen(buffer) + 10 > str_size){
+        //   str_size*=2;
+        //   str = realloc(str, str_size);
+        // }
+        // strcat(str, buffer);
+
+
+        if (p->dest->is_output == false){
+          aux_len++;
+          if (aux == NULL){
+            aux = malloc(sizeof(Node *) * aux_len);
+          } else {
+            aux = realloc(aux, sizeof(Node *) * aux_len);
+          }
+          aux[aux_len -1] = p->dest;
+        }
+      }
+    }
+    free(node_vector);
+    node_vector = aux;
+    aux = NULL;
+    vector_len = aux_len;
+    aux_len = 0;
+  }
+
+  if (aux != NULL){
+    free(aux);
+  }
+  free(node_vector);
+
+
+  // Node **nodes = graph_get_nodes(g);
+  // for (int i = 0; i < graph_get_n_nodes(g); i++){
+  //   Node *node = nodes[i];
+  //   for (int j = 0; j < node->n_pipes_out; j++){
+  //     Pipe *pipe = node->pipes_out[j];
+  //     Node *dest = pipe->dest;
+  //     sprintf(buffer, "%d->%d [label=\"Len: %.1fm\nPrssIn: %.1f Pa\nPrssOut: %.1f Pa\nFlowrate: %.4f m³/s\n\"];", node->ID, dest->ID, pipe->length, pipe->pressure_in, pipe->pressure_out, pipe->flowrate);
+  //     if (strlen(str) + strlen(buffer) + 10 > str_size){
+  //       str_size*=2;
+  //       str = realloc(str, str_size);
+  //     }
+  //     strcat(str, buffer);
+  //   }
+  // }
+
+
+  //TERMINATION
+  strcat(str, "}");
+  write(p[1], str, strlen(str)+1);
+  close(p[1]);
 }
