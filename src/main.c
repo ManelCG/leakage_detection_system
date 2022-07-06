@@ -32,7 +32,7 @@ int main(int argc, char *argv[]){
   int num_pipes = 12;
 
   //Aux data:
-  srand(420);
+  srand(69);
 
   //Create graph
   Graph *g = graph_new(NULL, num_pipes, sorig, torig);
@@ -67,6 +67,14 @@ int main(int argc, char *argv[]){
   float input_pressure = node_input_compute_pressure(node_v[1]);
   node_set_pressure_calculated(node_v[1], input_pressure);
 
+  //Set measured nodes
+  {
+    Node *n = graph_get_nth_node(g, 3);
+    node_set_is_measured(n, true);
+    n = graph_get_nth_node(g, 2);
+    node_set_is_measured(n, true);
+  }
+
 
   //Compute friction and pressures
   graph_backpropagate_flowrate(g);
@@ -86,12 +94,10 @@ int main(int argc, char *argv[]){
   }
 
   //Add leak outflow to input node
-  graph_add_leaks_to_inflow(g);
+  // graph_add_leaks_to_inflow(g);
+  graph_add_leaks_to_measured_nodes(g);
 
-
-  ////View result
-  //printf("GRAPH WITH LEAKS: \n");
-  //graph_print(g);
+  graph_print(g);
 
   //Check if there are leaks
   _Bool has_leaks = graph_has_leaks(g);
@@ -109,7 +115,7 @@ int main(int argc, char *argv[]){
     printf("Couldnt find leaks\n");
   }
 
-  graph_plot(g, 1920, 1080);
+  graph_plot(g);
 
   graph_destroy(g);
   leaks_destroy(leaks_calc);

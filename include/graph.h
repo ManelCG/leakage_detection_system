@@ -24,7 +24,7 @@ void leaks_destroy(Leaks *l);
 void graph_destroy(Graph *g);
 
 //IO
-void graph_plot(Graph *g, unsigned int w, unsigned int h);
+void graph_plot(Graph *g);
 
 //Node functions
 void node_add_pipe_in(Node *n, Pipe *p);
@@ -49,6 +49,9 @@ float node_get_pressure_measured(Node *n);
 void node_set_pressure_calculated(Node *n, float p);
 float node_get_pressure_calculated(Node *n);
 float node_input_compute_pressure(Node *n);
+
+void node_set_is_measured(Node *n, _Bool measured);
+_Bool node_get_is_measured(Node *n);
 
 //Pipe functions
 void pipe_set_geometry(Pipe *p, int g);
@@ -83,6 +86,9 @@ void graph_calculate_geometry(Graph *g);
 int graph_get_depth(Graph *);
 int graph_get_width(Graph *);
 
+void graph_cut_node(Graph *g, int i);
+void graph_del_node(Graph *g, int i);
+
 void graph_set_output_flowrates(Graph *g, float *outflows);
 
 void graph_compute_mass_conservation_matrix(Graph *g);
@@ -100,6 +106,7 @@ int graph_get_n_leak_nodes(Graph *g);
 
 Node *graph_get_nth_node(Graph *g, int);
 Node *graph_get_nth_disconnected_node(Graph *g, int);
+Node *graph_get_nth_measurement_node(Graph *g, int);
 Node *graph_get_nth_connected_node(Graph *g, int);
 Node *graph_get_nth_junction_node(Graph *g, int);
 Node *graph_get_nth_input_node(Graph *g, int);
@@ -110,6 +117,7 @@ float graph_get_total_outflow(Graph *g);
 float graph_get_total_calculated_outflow(Graph *g);
 void graph_set_inflow_evenly(Graph *g);
 void graph_add_leaks_to_inflow(Graph *g);
+void graph_add_leaks_to_measured_nodes(Graph *g);
 float graph_get_total_inflow(Graph *g);
 float graph_get_total_calculated_inflow(Graph *g);
 float graph_get_total_leak_outflow(Graph *g);
