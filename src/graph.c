@@ -940,8 +940,10 @@ int graph_get_n_nodes(Graph *g){
 int graph_get_n_disconnected_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (!g->nodes[i]->is_connected){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (!g->nodes[i]->is_connected){
+        sum++;
+      }
     }
   }
   return sum;
@@ -949,8 +951,10 @@ int graph_get_n_disconnected_nodes(Graph *g){
 int graph_get_n_connected_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_connected){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_connected){
+        sum++;
+      }
     }
   }
   return sum;
@@ -958,8 +962,10 @@ int graph_get_n_connected_nodes(Graph *g){
 int graph_get_n_junction_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_junction){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_junction){
+        sum++;
+      }
     }
   }
   return sum;
@@ -967,8 +973,10 @@ int graph_get_n_junction_nodes(Graph *g){
 int graph_get_n_input_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_input){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_input){
+        sum++;
+      }
     }
   }
   return sum;
@@ -976,8 +984,10 @@ int graph_get_n_input_nodes(Graph *g){
 int graph_get_n_measurement_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_measured){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_measured){
+        sum++;
+      }
     }
   }
   return sum;
@@ -985,8 +995,10 @@ int graph_get_n_measurement_nodes(Graph *g){
 int graph_get_n_output_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_output){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_output){
+        sum++;
+      }
     }
   }
   return sum;
@@ -994,8 +1006,10 @@ int graph_get_n_output_nodes(Graph *g){
 int graph_get_n_leak_nodes(Graph *g){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->has_leak){
-      sum++;
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->has_leak){
+        sum++;
+      }
     }
   }
   return sum;
@@ -1006,11 +1020,13 @@ Node *graph_get_nth_node(Graph *g, int i){
 Node *graph_get_nth_disconnected_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (!g->nodes[i]->is_connected){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (!g->nodes[i]->is_connected){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1018,11 +1034,13 @@ Node *graph_get_nth_disconnected_node(Graph *g, int index){
 Node *graph_get_nth_connected_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_connected){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_connected){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1030,11 +1048,13 @@ Node *graph_get_nth_connected_node(Graph *g, int index){
 Node *graph_get_nth_measurement_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_measured){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_measured){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1042,11 +1062,13 @@ Node *graph_get_nth_measurement_node(Graph *g, int index){
 Node *graph_get_nth_junction_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_junction){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_junction){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1054,11 +1076,13 @@ Node *graph_get_nth_junction_node(Graph *g, int index){
 Node *graph_get_nth_leak_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->has_leak){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->has_leak){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1066,11 +1090,13 @@ Node *graph_get_nth_leak_node(Graph *g, int index){
 Node *graph_get_nth_input_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_input){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_input){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1078,11 +1104,13 @@ Node *graph_get_nth_input_node(Graph *g, int index){
 Node *graph_get_nth_output_node(Graph *g, int index){
   int sum = 0;
   for (int i = 0; i < g->n_nodes; i++){
-    if (g->nodes[i]->is_output){
-      if (index == sum){
-        return g->nodes[i];
+    if (g->nodes[i] != NULL){
+      if (g->nodes[i]->is_output){
+        if (index == sum){
+          return g->nodes[i];
+        }
+        sum++;
       }
-      sum++;
     }
   }
   return NULL;
@@ -1153,6 +1181,15 @@ void graph_add_leaks_to_measured_nodes(Graph *g){
 
   for (int index_leak = 0; index_leak < num_leaks; index_leak++){
     Node *nl = graph_get_nth_leak_node(g, index_leak);
+
+    if (nl->is_measured){
+      if (nl->flowrate_measured != -1){
+        node_set_flowrate_measured(nl, node_get_flowrate_measured(nl) + nl->leak_flowrate);
+      } else {
+        node_set_flowrate_measured(nl, node_get_flowrate_calculated(nl) + nl->leak_flowrate);
+      }
+    }
+
     float leak_flowrate = nl->leak_flowrate;
     float flowrate_per_area;
 
@@ -1198,18 +1235,16 @@ void graph_add_leaks_to_measured_nodes(Graph *g){
         for (int j = 0; j < n_pipes; j++){
           Pipe *p = n->pipes_in[j];
 
-          if (p->orig->is_input == false){
-            aux_len++;
-            if (aux == NULL){
-              aux = malloc(sizeof(Node *) * aux_len);
-              aux_area = malloc(sizeof(float) * aux_len);
-            } else {
-              aux = realloc(aux, sizeof(Node *) * aux_len);
-              aux_area = realloc(aux_area, sizeof(float) * aux_len);
-            }
-            aux[aux_len - 1] = p->orig;
-            aux_area[aux_len -1] = p->area;
+          aux_len++;
+          if (aux == NULL){
+            aux = malloc(sizeof(Node *) * aux_len);
+            aux_area = malloc(sizeof(float) * aux_len);
+          } else {
+            aux = realloc(aux, sizeof(Node *) * aux_len);
+            aux_area = realloc(aux_area, sizeof(float) * aux_len);
           }
+          aux[aux_len - 1] = p->orig;
+          aux_area[aux_len -1] = p->area;
         }
       }
 
@@ -1667,17 +1702,15 @@ void graph_cut_node(Graph *g, int node_i){
     node_vector[i] = ni->pipes_out[i]->dest;
   }
 
-  g->nodes[node_i] = NULL;
+  graph_del_node(g, node_i);
 
   while (vector_len != 0){
     for (int i = 0; i < vector_len; i++){
       Node *n = node_vector[i];
       int n_pipes = n->n_pipes_out;
 
-      g->nodes[n->ID] = NULL;
-
       for (int j = 0; j < n_pipes; j++){
-        Pipe *p = n->pipes_in[j];
+        Pipe *p = n->pipes_out[j];
 
         if (g->nodes[p->dest->ID] != NULL){
           aux_len++;
@@ -1687,9 +1720,11 @@ void graph_cut_node(Graph *g, int node_i){
           } else {
             aux = realloc(aux, sizeof(Node *) * aux_len);
           }
-          aux[aux_len -1] = p->orig;
+          aux[aux_len -1] = p->dest;
         }
       }
+
+      graph_del_node(g, n->ID);
     }
 
     free(node_vector);
@@ -1699,13 +1734,79 @@ void graph_cut_node(Graph *g, int node_i){
     aux_len = 0;
   }
 }
-void graph_plot(Graph *g){
-  int p[2], pid;
+Node *graph_del_node(Graph *g, int node_i){
+  Node *n = g->nodes[node_i];
+  g->nodes[node_i] = NULL;
+  return n;
+}
+float node_measurement_get_diff(Node *n){
+  if (n->is_measured){
+    if (n->flowrate_measured != -1){
+      return n->flowrate_measured - n->flowrate_calculated;
+    } else {
+      return -1;
+    }
+  } else {
+    return -1;
+  }
+}
+float node_measurement_get_successors_diff(Node *n){
+  float result = 0;
+  int vector_len = 1;
+  int aux_len = 0;
 
+  Node **node_vector = malloc(sizeof(Node *) * vector_len);
+  Node **aux = NULL;
+
+  node_vector[0] = n;
+
+  while (vector_len != 0){
+    for (int i = 0; i < vector_len; i++){
+      Node *n = node_vector[i];
+      int n_pipes = n->n_pipes_out;
+
+      for (int j = 0; j < n_pipes; j++){
+        Pipe *p = n->pipes_out[j];
+        Node *dest = p->dest;
+
+        if (dest->is_measured){
+          if (dest->flowrate_measured != -1){
+            result += node_measurement_get_diff(dest);
+          }
+        } else {
+          aux_len++;
+          if (aux == NULL){
+            aux = malloc(sizeof(Node *) * aux_len);
+          } else {
+            aux = realloc(aux, sizeof(Node *) * aux_len);
+          }
+
+          aux[aux_len -1] = dest;
+        }
+      }
+    }
+    free(node_vector);
+    node_vector = aux;
+    aux = NULL;
+    vector_len = aux_len;
+    aux_len = 0;
+  }
+
+  if (aux != NULL){
+    free(aux);
+  }
+  free(node_vector);
+
+  return result;
+}
+void graph_plot(Graph *g){
+  //Make copy of graph to not destroy original
   g = graph_copy(NULL, g);
 
-  // graph_print(g);
+  const float float_tolerance = 0.000001;
 
+  //Variables for running graphviz
+  int p[2], pid;
   if (pipe(p) < 0){
     perror("Could not pipe:");
   }
@@ -1713,6 +1814,7 @@ void graph_plot(Graph *g){
     perror("Could not fork:");
   }
 
+  //Fork for graphviz
   if (pid == 0){
     close(0);
     dup(p[0]);
@@ -1727,12 +1829,91 @@ void graph_plot(Graph *g){
   }
   close(p[0]);
 
+  //String for piping to graphviz
   int str_size = 1024;
   int buffer_size = 1024;
 
+  //Graphviz header
   char *str = malloc(sizeof(char) * str_size);
   char buffer[buffer_size];
   strcpy(str, "digraph G{fontname=\"Helvetica,Arial,sans-serif\"\nnode [fontname=\"Helvetica,Arial,sans-serif\"]\nedge [fontname=\"Helvetica,Arial,sans-serif\"]\n");
+
+  //Clone again to g2 and cut nodes after leak
+  Graph *g2 = graph_copy(NULL, g);
+  int *nodes_to_del = NULL;
+  int nodes_to_del_l = 0;
+  int *nodes_to_cut = NULL;
+  int nodes_to_cut_l = 0;
+  for (int i = 0; i < graph_get_n_measurement_nodes(g2); i++){
+    Node *nm = graph_get_nth_measurement_node(g2, i);
+    printf("Node %d has %f diff and %f succ diff\n", nm->ID, node_measurement_get_diff(nm), node_measurement_get_successors_diff(nm));
+    if (nm != NULL){
+      _Bool del = false;
+      _Bool cut = false;
+      if (fabs(node_measurement_get_diff(nm) - node_measurement_get_successors_diff(nm)) < float_tolerance && node_measurement_get_diff(nm) > 0){
+        printf("Deleting node %d\n", nm->ID);
+        del = true;
+      }
+      if (nm->flowrate_measured == nm->flowrate_calculated){
+        printf("Cutting node %d\n", nm->ID);
+        cut = true;
+      }
+      if (del){
+        if (nodes_to_del == NULL){
+          nodes_to_del = malloc(sizeof(int));
+          nodes_to_del[nodes_to_del_l] = nm->ID;
+        } else {
+          nodes_to_del = realloc(nodes_to_del, sizeof(int) * (nodes_to_del_l+1));
+          nodes_to_del[nodes_to_del_l] = nm->ID;
+        }
+        nodes_to_del_l++;
+      }
+      if (cut){
+        if (nodes_to_cut == NULL){
+          nodes_to_cut = malloc(sizeof(int));
+          nodes_to_cut[nodes_to_cut_l] = nm->ID;
+        } else {
+          nodes_to_cut = realloc(nodes_to_cut, sizeof(int) * (nodes_to_cut_l+1));
+          nodes_to_cut[nodes_to_cut_l] = nm->ID;
+        }
+        nodes_to_cut_l++;
+      }
+    }
+  }
+  for (int i = 0; i < nodes_to_del_l; i++){
+    graph_del_node(g2, nodes_to_del[i]);
+  }
+  for (int i = 0; i < nodes_to_cut_l; i++){
+    graph_cut_node(g2, nodes_to_cut[i]);
+  }
+  if (nodes_to_cut != NULL){
+    free(nodes_to_cut);
+  }
+  if (nodes_to_del != NULL){
+    free(nodes_to_del);
+  }
+
+  // g = g2;
+
+  //FAULTY NODE FORMAT
+  sprintf(buffer, "node [shape=diamond color=red]; ");
+  if (strlen(str) + strlen(buffer) + 10 > str_size){
+    str_size *= 2;
+    str = realloc(str, str_size);
+  }
+  strcat(str, buffer);
+  for (int i = 0; i < graph_get_n_nodes(g2); i++){
+    Node *node = graph_get_nth_node(g2, i);
+
+    if (node != NULL && g->nodes[i]->is_connected){
+      sprintf(buffer, "%d; ", node->ID);
+      if (strlen(str) + strlen(buffer) + 10 < str_size){
+        str_size*=2;
+        str = realloc(str, str_size);
+      }
+      strcat(str, buffer);
+    }
+  }
 
   //INPUT NODE FORMAT
   sprintf(buffer, "node [shape=ellipse color=blue]; ");
@@ -1743,13 +1924,14 @@ void graph_plot(Graph *g){
   strcat(str, buffer);
   for (int i = 0; i < graph_get_n_input_nodes(g); i++){
     Node *node = graph_get_nth_input_node(g, i);
-
-    sprintf(buffer, "%d; ", node->ID);
-    if (strlen(str) + strlen(buffer) + 10 < str_size){
-      str_size*=2;
-      str = realloc(str, str_size);
+    if (node != NULL){
+      sprintf(buffer, "%d; ", node->ID);
+      if (strlen(str) + strlen(buffer) + 10 < str_size){
+        str_size*=2;
+        str = realloc(str, str_size);
+      }
+      strcat(str, buffer);
     }
-    strcat(str, buffer);
   }
 
   //JUNCTION NODE FORMAT
@@ -1762,12 +1944,14 @@ void graph_plot(Graph *g){
   for (int i = 0; i < graph_get_n_junction_nodes(g); i++){
     Node *node = graph_get_nth_junction_node(g, i);
 
-    sprintf(buffer, "%d; ", node->ID);
-    if (strlen(str) + strlen(buffer) + 10 < str_size){
-      str_size*=2;
-      str = realloc(str, str_size);
+    if (node != NULL){
+      sprintf(buffer, "%d; ", node->ID);
+      if (strlen(str) + strlen(buffer) + 10 < str_size){
+        str_size*=2;
+        str = realloc(str, str_size);
+      }
+      strcat(str, buffer);
     }
-    strcat(str, buffer);
   }
 
   //OUTPUT NODE FORMAT
@@ -1780,13 +1964,17 @@ void graph_plot(Graph *g){
   for (int i = 0; i < graph_get_n_output_nodes(g); i++){
     Node *node = graph_get_nth_output_node(g, i);
 
-    sprintf(buffer, "%d; ", node->ID);
-    if (strlen(str) + strlen(buffer) + 10 > str_size){
-      str_size*=2;
-      str = realloc(str, str_size);
+    if (node != NULL){
+      sprintf(buffer, "%d; ", node->ID);
+      if (strlen(str) + strlen(buffer) + 10 > str_size){
+        str_size*=2;
+        str = realloc(str, str_size);
+      }
+      strcat(str, buffer);
     }
-    strcat(str, buffer);
   }
+
+  printf("Draw pupes\n");
 
   //DRAW PIPES
   Node **node_vector;
@@ -1804,12 +1992,7 @@ void graph_plot(Graph *g){
     for (int i = 0; i < vector_len; i++){
       Node *n = node_vector[i];
       int n_pipes = n->n_pipes_out;
-      _Bool in_leak_range = false;
 
-      // printf("Node %d measure: %d\n", n->ID, n->is_measured);
-      // printf("Flowrate %g vs %g\n", n->flowrate_calculated, n->flowrate_measured);
-
-      // float flowrate_node ;
       float flowrate_inpipes = 0;
       float flowrate_outpipes = 0;
       for (int j = 0; j < n->n_pipes_out; j++){
@@ -1819,52 +2002,47 @@ void graph_plot(Graph *g){
         flowrate_inpipes += n->pipes_in[j]->flowrate;
       }
 
-      // if (n->is_measured){
-      //   if (n->flowrate_calculated != n->flowrate_measured){
-      //     printf("Node %d is in leak range\n", n->ID);
-      //     in_leak_range = true;
-      //   }
-      // }
-
       printf("\n");
       for (int j = 0; j < n_pipes; j++){
         Pipe *p = n->pipes_out[j];
+        if (g->nodes[p->dest->ID] != NULL){
 
-        printf("Drawing %d->%d\n", p->orig->ID, p->dest->ID);
+          printf("Drawing %d->%d\n", p->orig->ID, p->dest->ID);
 
-        sprintf(buffer, "%d->%d ", p->orig->ID, p->dest->ID);
-        if (strlen(str) + strlen(buffer) + 10 > str_size){
-          str_size*=2;
-          str = realloc(str, str_size);
-        }
-        strcat(str, buffer);
-
-        if (in_leak_range){
-          sprintf(buffer, "[color=red] ");
+          sprintf(buffer, "%d->%d ", p->orig->ID, p->dest->ID);
           if (strlen(str) + strlen(buffer) + 10 > str_size){
             str_size*=2;
             str = realloc(str, str_size);
           }
           strcat(str, buffer);
-        }
 
-        ////ADD PIPE INFORMATION
-        //sprintf(buffer, "[label=\"Len: %.1fm\nPrssIn: %.1f Pa\nPrssOut: %.1f Pa\nFlowrate: %.4f m³/s\n\"];", p->length, p->pressure_in, p->pressure_out, p->flowrate);
-        //if (strlen(str) + strlen(buffer) + 10 > str_size){
-        //  str_size*=2;
-        //  str = realloc(str, str_size);
-        //}
-        //strcat(str, buffer);
-
-
-        if (p->dest->is_output == false){
-          aux_len++;
-          if (aux == NULL){
-            aux = malloc(sizeof(Node *) * aux_len);
-          } else {
-            aux = realloc(aux, sizeof(Node *) * aux_len);
+          if (g2->nodes[p->orig->ID] != NULL && g2->nodes[p->dest->ID] != NULL){
+            sprintf(buffer, "[color=red] ");
+            if (strlen(str) + strlen(buffer) + 10 > str_size){
+              str_size*=2;
+              str = realloc(str, str_size);
+            }
+            strcat(str, buffer);
           }
-          aux[aux_len -1] = p->dest;
+
+          ////ADD PIPE INFORMATION
+          //sprintf(buffer, "[label=\"Len: %.1fm\nPrssIn: %.1f Pa\nPrssOut: %.1f Pa\nFlowrate: %.4f m³/s\n\"];", p->length, p->pressure_in, p->pressure_out, p->flowrate);
+          //if (strlen(str) + strlen(buffer) + 10 > str_size){
+          //  str_size*=2;
+          //  str = realloc(str, str_size);
+          //}
+          //strcat(str, buffer);
+
+
+          if (p->dest->is_output == false){
+            aux_len++;
+            if (aux == NULL){
+              aux = malloc(sizeof(Node *) * aux_len);
+            } else {
+              aux = realloc(aux, sizeof(Node *) * aux_len);
+            }
+            aux[aux_len -1] = p->dest;
+          }
         }
       }
     }
@@ -1902,4 +2080,7 @@ void graph_plot(Graph *g){
   strcat(str, "}");
   write(p[1], str, strlen(str)+1);
   close(p[1]);
+
+  graph_destroy(g);
+  graph_destroy(g2);
 }

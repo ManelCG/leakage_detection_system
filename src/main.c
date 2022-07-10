@@ -68,12 +68,22 @@ int main(int argc, char *argv[]){
   node_set_pressure_calculated(node_v[1], input_pressure);
 
   //Set measured nodes
-  {
-    Node *n = graph_get_nth_node(g, 3);
-    node_set_is_measured(n, true);
-    n = graph_get_nth_node(g, 2);
-    node_set_is_measured(n, true);
-  }
+  node_set_is_measured(graph_get_nth_node(g, 1), true);
+  node_set_is_measured(graph_get_nth_node(g, 2), true);
+  node_set_is_measured(graph_get_nth_node(g, 3), true);
+  node_set_is_measured(graph_get_nth_node(g, 4), true);
+  node_set_is_measured(graph_get_nth_node(g, 5), true);
+  node_set_is_measured(graph_get_nth_node(g, 6), true);
+  node_set_is_measured(graph_get_nth_node(g, 7), true);
+  node_set_is_measured(graph_get_nth_node(g, 8), true);
+  node_set_is_measured(graph_get_nth_node(g, 9), true);
+  node_set_is_measured(graph_get_nth_node(g, 10), true);
+  node_set_is_measured(graph_get_nth_node(g, 11), true);
+  node_set_is_measured(graph_get_nth_node(g, 12), true);
+  // node_set_is_measured(graph_get_nth_node(g, 6), true);
+  // node_set_is_measured(graph_get_nth_node(g, 9), true);
+  // node_set_is_measured(graph_get_nth_node(g, 12), true);
+
 
 
   //Compute friction and pressures
@@ -87,7 +97,7 @@ int main(int argc, char *argv[]){
   //printf("\n\n");
 
 
-  int nleaks = 1;
+  int nleaks = 2;
   Leaks *leaks_gen = graph_generate_random_leaks(g, nleaks);
   if (leaks_gen == NULL){
     printf("Error generating random leaks...\n");

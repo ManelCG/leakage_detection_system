@@ -53,6 +53,9 @@ float node_input_compute_pressure(Node *n);
 void node_set_is_measured(Node *n, _Bool measured);
 _Bool node_get_is_measured(Node *n);
 
+float node_measurement_get_diff(Node *n);
+float node_measurement_get_successors_diff(Node *n);
+
 //Pipe functions
 void pipe_set_geometry(Pipe *p, int g);
 int pipe_set_diam(Pipe *p, float d);
@@ -87,7 +90,7 @@ int graph_get_depth(Graph *);
 int graph_get_width(Graph *);
 
 void graph_cut_node(Graph *g, int i);
-void graph_del_node(Graph *g, int i);
+Node *graph_del_node(Graph *g, int i);
 
 void graph_set_output_flowrates(Graph *g, float *outflows);
 
